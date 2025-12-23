@@ -98,7 +98,7 @@ resource "google_cloudfunctions2_function" "email_handler" {
   description = "Secure Gmail API Handler via Domain-Wide Delegation"
 
   build_config {
-    runtime     = "go121"
+    runtime     = "go125"
     entry_point = "HandleEmail" # Must match function.go
     
     source {
