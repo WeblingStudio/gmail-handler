@@ -4,6 +4,8 @@ cloud.google.com/go/auth/oauth2adapt v0.2.8 h1:keo8NaayQZ6wimpNSmW5OPc283g65QNIi
 cloud.google.com/go/auth/oauth2adapt v0.2.8/go.mod h1:XQ9y31RkqZCcwJWNSx2Xvric3RrU88hAYYbjDWYDL+c=
 cloud.google.com/go/compute/metadata v0.9.0 h1:pDUj4QMoPejqq20dK0Pg2N4yG9zIkYGdBtwLoEkH9Zs=
 cloud.google.com/go/compute/metadata v0.9.0/go.mod h1:E0bWwX5wTnLPedCKqk3pJmVgCBSM6qQI1yTBdEb3C10=
+cloud.google.com/go/functions v1.19.3 h1:V0vCHSgFTUqKn57+PUXp1UfQY0/aMkveAw7wXeM3Lq0=
+cloud.google.com/go/functions v1.19.3/go.mod h1:nOZ34tGWMmwfiSJjoH/16+Ko5106x+1Iji29wzrBeOo=
 github.com/GoogleCloudPlatform/functions-framework-go v1.9.2 h1:Cev/PdoxY86bJjGwHJcpiWMhrZMVEoKp9wuEp9gCUvw=
 github.com/GoogleCloudPlatform/functions-framework-go v1.9.2/go.mod h1:wLEV4uSJztSBI+QyUy2fkHBuGFjRIAEDOqcEQ2hwmgE=
 github.com/aymerick/douceur v0.2.0 h1:Mv+mAeH1Q+n9Fr+oyamOlAkUNPWPlA8PPGR0QAaYuPk=
