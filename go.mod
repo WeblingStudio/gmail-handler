@@ -2,7 +2,10 @@ module github.com/vinm0/gmail-handler
 
 go 1.25
 
-require github.com/microcosm-cc/bluemonday v1.0.27
+require (
+	github.com/microcosm-cc/bluemonday v1.0.27
+	golang.org/x/oauth2 v0.34.0
+)
 
 require (
 	cloud.google.com/go/auth v0.17.0 // indirect
@@ -21,7 +24,6 @@ require (
 	go.opentelemetry.io/otel/metric v1.38.0 // indirect
 	go.opentelemetry.io/otel/trace v1.38.0 // indirect
 	golang.org/x/crypto v0.46.0 // indirect
-	golang.org/x/oauth2 v0.34.0 // indirect
 	golang.org/x/sys v0.39.0 // indirect
 	golang.org/x/text v0.32.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251213004720-97cd9d5aeac2 // indirect
@@ -30,7 +32,7 @@ require (
 )
 
 require (
-	github.com/GoogleCloudPlatform/functions-framework-go v1.9.2 // indirect
+	github.com/GoogleCloudPlatform/functions-framework-go v1.9.2
 	github.com/aymerick/douceur v0.2.0 // indirect
 	github.com/cloudevents/sdk-go/v2 v2.15.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect

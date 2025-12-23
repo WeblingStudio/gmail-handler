@@ -17,11 +17,12 @@ type Request struct {
 	CampaignID string `json:"campaign_id"`
 
 	// Identity & Recipients
-	SenderName string   `json:"sender_name,omitempty"`
-	Recipient  string   `json:"recipient"`
-	CC         []string `json:"cc,omitempty"`
-	BCC        []string `json:"bcc,omitempty"`
-	ReplyTo    string   `json:"reply_to,omitempty"`
+	SenderName  string   `json:"sender_name,omitempty"`
+	Recipient   string   `json:"recipient"`
+	CC          []string `json:"cc,omitempty"`
+	BCC         []string `json:"bcc,omitempty"`
+	ReplyTo     string   `json:"reply_to,omitempty"`
+	FromAddress string   `json:"from_address,omitempty"` // INJECTION FIELD
 
 	// Content
 	Subject  string `json:"subject"`
@@ -74,9 +75,9 @@ func BuildMime(req Request) ([]byte, error) {
 	}
 
 	// From Header
-	fromHeader := fmt.Sprintf("%s: me\r\n", constants.HeaderFrom)
+	fromHeader := fmt.Sprintf("%s: %s\r\n", constants.HeaderFrom, req.FromAddress)
 	if req.SenderName != "" {
-		fromHeader = fmt.Sprintf("%s: \"%s\" <me>\r\n", constants.HeaderFrom, req.SenderName)
+		fromHeader = fmt.Sprintf("%s: \"%s\" <%s>\r\n", constants.HeaderFrom, req.SenderName, req.FromAddress)
 	}
 
 	headers := fromHeader

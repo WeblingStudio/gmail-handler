@@ -5,6 +5,16 @@
 *.so
 *.dylib
 
+# Local Terraform State
+.terraform/
+*.tfstate
+*.tfstate.*
+tfplan
+
+# Terraform Secret Variables
+*.tfvars
+*.auto.tfvars
+
 # Test binary, built with `go test -c`
 *.test
 
