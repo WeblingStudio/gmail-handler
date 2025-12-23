@@ -22,7 +22,9 @@ resource "google_project_service" "apis" {
     "artifactregistry.googleapis.com",
     "cloudbuild.googleapis.com",
     "gmail.googleapis.com",
-    "iamcredentials.googleapis.com" # Required for Keyless Signing
+    "iamcredentials.googleapis.com", # Required for Keyless Signing
+    "storage.googleapis.com",        # Required for Bucket creation
+    "iam.googleapis.com"             # Required for Service Account creation
   ])
   service            = each.key
   disable_on_destroy = false
@@ -58,7 +60,7 @@ data "archive_file" "function_zip" {
   output_path = "/tmp/function.zip"
   
   # Exclude infrastructure and git files from the build artifact
-  excludes    = [".git", "terraform", "local_bin", ".DS_Store"]
+  excludes    = [".git", "terraform", "infra", "local_bin", ".DS_Store", "cmd"]
 }
 
 # B. Create Bucket for Source Code
