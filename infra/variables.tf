@@ -23,3 +23,9 @@ variable "invoker_members" {
   type        = list(string)
   default     = [] // empty by default for security
 }
+
+variable "sender_display_name" {
+  description = "The name to display in the 'From' header (e.g., 'Notification Bot')"
+  type        = string
+  default     = ""
+}

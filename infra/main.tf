@@ -12,6 +12,8 @@ provider "google" {
   region  = var.region
 }
 
+data "google_project" "current" {}
+
 # ==============================================================================
 # 1. ENABLE REQUIRED APIS
 # ==============================================================================
@@ -47,6 +49,30 @@ resource "google_service_account_iam_member" "self_token_creator" {
   service_account_id = google_service_account.email_sender.name
   role               = "roles/iam.serviceAccountTokenCreator"
   member             = "serviceAccount:${google_service_account.email_sender.email}"
+}
+
+# C. Fix for Cloud Functions Gen 2 Build Permission Error
+# Grants the Default Compute Service Account access to read storage buckets (required for build artifacts)
+resource "google_project_iam_member" "compute_sa_storage_viewer" {
+  project = data.google_project.current.id
+  role    = "roles/storage.objectViewer"
+  member  = "serviceAccount:${data.google_project.current.number}-compute@developer.gserviceaccount.com"
+}
+
+# D. Fix for Artifact Registry Permission Error
+# Grants the Default Compute Service Account access to read/write artifacts (required for Cloud Build)
+resource "google_project_iam_member" "compute_sa_artifact_registry" {
+  project = data.google_project.current.id
+  role    = "roles/artifactregistry.writer"
+  member  = "serviceAccount:${data.google_project.current.number}-compute@developer.gserviceaccount.com"
+}
+
+# E. Fix for Cloud Logging Permission Error
+# Grants the Default Compute Service Account access to write logs (required for Cloud Build)
+resource "google_project_iam_member" "compute_sa_logging_writer" {
+  project = data.google_project.current.id
+  role    = "roles/logging.logWriter"
+  member  = "serviceAccount:${data.google_project.current.number}-compute@developer.gserviceaccount.com"
 }
 
 # ==============================================================================
@@ -124,6 +150,7 @@ resource "google_cloudfunctions2_function" "email_handler" {
       DELEGATED_USER_EMAIL    = var.delegated_user_email
       ALIAS_USER_EMAIL        = var.alias_email
       FUNCTION_IDENTITY_EMAIL = google_service_account.email_sender.email
+      SENDER_DISPLAY_NAME     = var.sender_display_name
     }
   }
 

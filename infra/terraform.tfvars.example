@@ -1,0 +1,17 @@
+project_id           = "my-gcp-project-id"
+region               = "gcp-region"
+
+# The Google Workspace user to impersonate (e.g., the actual mailbox owner)
+delegated_user_email = "notifications@example.com"
+
+# The alias to appear in the "From" header (must be a valid alias for the user above)
+alias_email          = "no-reply@example.com"
+
+# The name to display in the "From" header
+sender_display_name = "My Service Bot"
+
+# List of IAM members allowed to call this function via HTTP
+invoker_members      = [
+  "serviceAccount:my-invoker-sa@my-project.iam.gserviceaccount.com",
+  "group:engineering-team@example.com"
+]

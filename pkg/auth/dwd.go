@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/vinm0/gmail-handler/pkg/constants"
@@ -40,11 +42,14 @@ func (k *KeylessTokenSource) Token() (*oauth2.Token, error) {
 	iat := time.Now().Unix()
 	exp := iat + 3600 // Token valid for 1 hour
 
+	// Scopes must be a space-delimited string, not a JSON array
+	scopeString := strings.Join(k.Scopes, " ")
+
 	claims := map[string]interface{}{
-		constants.JWTClaimIssuer:    k.ServiceAccountEmail,
-		constants.JWTClaimSubject:   k.DelegateEmail, // The user we are impersonating
-		constants.JWTClaimScope:     k.Scopes,        // Permissions
-		constants.JWTClaimAudience:  constants.OAuth2TokenURL,
+		constants.JWTClaimIssuer:     k.ServiceAccountEmail,
+		constants.JWTClaimSubject:    k.DelegateEmail, // The user we are impersonating
+		constants.JWTClaimScope:      scopeString,     // Permissions
+		constants.JWTClaimAudience:   constants.OAuth2TokenURL,
 		constants.JWTClaimExpiration: exp,
 		constants.JWTClaimIssuedAt:   iat,
 	}
@@ -80,7 +85,8 @@ func (k *KeylessTokenSource) Token() (*oauth2.Token, error) {
 
 	if tokenResp.StatusCode != http.StatusOK {
 		// Read body for error details
-		return nil, fmt.Errorf("oauth endpoint returned status: %s", tokenResp.Status)
+		body, _ := io.ReadAll(tokenResp.Body)
+		return nil, fmt.Errorf("oauth endpoint returned status: %s, body: %s", tokenResp.Status, string(body))
 	}
 
 	// 4. Parse the successful response

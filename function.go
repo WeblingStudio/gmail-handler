@@ -26,6 +26,7 @@ const (
 	EnvDelegatedUser = "DELEGATED_USER_EMAIL"    // e.g. admin@ or notifications@
 	EnvAliasEmail    = "ALIAS_USER_EMAIL"        // e.g. notifications@
 	EnvFunctionSA    = "FUNCTION_IDENTITY_EMAIL" // The Cloud Function's Service Account
+	EnvSenderName    = "SENDER_DISPLAY_NAME"     // Optional: "My Service Name"
 
 	// Safety Limits
 	MaxTotalSizeMB = 20
@@ -85,6 +86,7 @@ func HandleEmail(w http.ResponseWriter, r *http.Request) {
 	// We read the Alias Email here to inject it into the request
 	aliasEmail := os.Getenv(EnvAliasEmail)
 	delegatedUser := os.Getenv(EnvDelegatedUser)
+	senderName := os.Getenv(EnvSenderName)
 
 	// --- 2. Parse Payload ---
 	var req email.Request
@@ -130,7 +132,11 @@ func HandleEmail(w http.ResponseWriter, r *http.Request) {
 	// INJECTION: Force the builder to use our configured Alias
 	// Note: Ensure your pkg/email/builder.go's Request struct has a 'FromAddress' field
 	// or that you pass this explicitly. Assuming the struct supports it:
-	req.FromAddress = aliasEmail
+	if senderName != "" {
+		req.FromAddress = fmt.Sprintf("%s <%s>", senderName, aliasEmail)
+	} else {
+		req.FromAddress = aliasEmail
+	}
 
 	rawMime, err := email.BuildMime(req)
 	if err != nil {
@@ -147,7 +153,7 @@ func HandleEmail(w http.ResponseWriter, r *http.Request) {
 	sentMsg, err := gmailService.Users.Messages.Send("me", msg).Do()
 	if err != nil {
 		logger.Error("upstream send failed", "recipient", req.Recipient, "error", err)
-		http.Error(w, "Upstream API Error", http.StatusBadGateway)
+		http.Error(w, fmt.Sprintf("Upstream API Error: %v", err), http.StatusBadGateway)
 		return
 	}
 
@@ -163,6 +169,9 @@ func HandleEmail(w http.ResponseWriter, r *http.Request) {
 	if req.Options.Important {
 		labelsToAdd = append(labelsToAdd, constants.LabelImportant)
 	}
+
+	// Fix: Ensure the sent message appears in the Inbox (not just All Mail/Sent)
+	labelsToAdd = append(labelsToAdd, "INBOX")
 
 	if len(labelsToAdd) > 0 {
 		_, err := gmailService.Users.Messages.Modify("me", sentMsg.Id, &gmail.ModifyMessageRequest{
