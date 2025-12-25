@@ -82,6 +82,13 @@ func HandleEmail(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
+	// --- 0. Routing / Path Validation ---
+	// Future-proofing: Ensure we only process requests meant for the send endpoint.
+	if r.URL.Path != "/send" && r.URL.Path != "/" {
+		http.NotFound(w, r)
+		return
+	}
+
 	// --- 1. Load Config & Validate ---
 	// We read the Alias Email here to inject it into the request
 	aliasEmail := os.Getenv(EnvAliasEmail)
@@ -130,13 +137,12 @@ func HandleEmail(w http.ResponseWriter, r *http.Request) {
 	// --- 5. Construct MIME Message ---
 
 	// INJECTION: Force the builder to use our configured Alias
-	// Note: Ensure your pkg/email/builder.go's Request struct has a 'FromAddress' field
-	// or that you pass this explicitly. Assuming the struct supports it:
+	req.FromAddress = aliasEmail
 	if senderName != "" {
-		req.FromAddress = fmt.Sprintf("%s <%s>", senderName, aliasEmail)
-	} else {
-		req.FromAddress = aliasEmail
+		req.SenderName = senderName
 	}
+
+	logger.Info("preparing email", "from_address", req.FromAddress, "recipient", req.Recipient)
 
 	rawMime, err := email.BuildMime(req)
 	if err != nil {
@@ -169,9 +175,6 @@ func HandleEmail(w http.ResponseWriter, r *http.Request) {
 	if req.Options.Important {
 		labelsToAdd = append(labelsToAdd, constants.LabelImportant)
 	}
-
-	// Fix: Ensure the sent message appears in the Inbox (not just All Mail/Sent)
-	labelsToAdd = append(labelsToAdd, "INBOX")
 
 	if len(labelsToAdd) > 0 {
 		_, err := gmailService.Users.Messages.Modify("me", sentMsg.Id, &gmail.ModifyMessageRequest{
