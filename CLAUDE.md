@@ -12,14 +12,15 @@ A serverless Gmail API handler deployed as a Google Cloud Function (Gen 2) that 
 ```bash
 # Set required environment variables
 export DELEGATED_USER_EMAIL="notifications@example.com"
-export ALIAS_USER_EMAIL="no-reply@example.com"
 export FUNCTION_IDENTITY_EMAIL="your-sa-email@..."
 
 # Run locally using Functions Framework
 go run cmd/main.go
 
 # Test locally (server runs on port 8080 by default)
-curl -X POST http://localhost:8080 -d '{"recipient":"test@example.com", "subject":"Test", "body_html":"<p>Test</p>"}'
+curl -X POST http://localhost:8080/send \
+  -H "Content-Type: application/json" \
+  -d '{"sender_address":"no-reply@example.com", "recipient_address":"test@example.com", "subject":"Test", "body_html":"<p>Test</p>"}'
 ```
 
 ### Deployment & Infrastructure
@@ -101,17 +102,15 @@ Required at runtime:
 - `DELEGATED_USER_EMAIL`: The Google Workspace user to impersonate (mailbox owner)
 - `FUNCTION_IDENTITY_EMAIL`: The service account email (robot identity)
 
-Deprecated (v2.0+):
-- `ALIAS_USER_EMAIL`: Sender address now provided per-request
-- `SENDER_DISPLAY_NAME`: Sender name now provided per-request
+**Note**: Sender information (`sender_address` and `sender_name`) is provided per-request in the JSON payload, not via environment variables.
 
 ### Important Implementation Details
 
 1. **Warm Starts**: The Gmail service client is cached in a global variable (`gmailService`) and reused across invocations for performance.
 
-2. **Client-Controlled Sender (v2.0+)**: The handler uses client-provided `req.SenderAddress` without modification. Clients must ensure the address is configured as a Gmail alias. Invalid aliases will be rewritten by Gmail's anti-spoofing.
+2. **Client-Controlled Sender**: The handler uses client-provided `req.SenderAddress` without modification. Clients must ensure the address is configured as a Gmail alias. Invalid aliases will be rewritten by Gmail's anti-spoofing.
 
-3. **Health Check Endpoint (v2.0+)**: `/health` endpoint provides lightweight status check without Gmail service initialization. Returns JSON: `{"status":"healthy","service":"gmail-handler"}`.
+3. **Health Check Endpoint**: `/health` endpoint provides lightweight status check without Gmail service initialization. Returns JSON: `{"status":"healthy","service":"gmail-handler"}`.
 
 4. **Label Application**: Labels are applied post-send via `Messages.Modify` rather than during send. Failures are logged but don't fail the request since the primary email send succeeded.
 
@@ -150,7 +149,7 @@ infra/
 
 Before deploying, ensure:
 1. Service Account Client ID from Terraform output is authorized in Google Workspace Admin Console
-2. The `alias_email` is configured in Gmail Settings for the `delegated_user_email` (Settings → Accounts → Send mail as)
+2. All sender addresses you plan to use are configured as Gmail aliases for the `delegated_user_email` (Settings → Accounts → Send mail as)
 3. All required APIs are enabled (done automatically by Terraform)
 
 ### Terraform Configuration
@@ -160,6 +159,6 @@ Required variables in `infra/terraform.tfvars`:
 - `region`: GCP region for Cloud Function
 - `gateway_region`: API Gateway region (must be supported, e.g., us-central1)
 - `delegated_user_email`: Workspace user to impersonate
-- `alias_email`: Sender alias address
-- `sender_display_name`: Display name for sender
 - `invoker_members`: List of IAM members allowed to invoke function directly (separate from API Gateway access)
+
+**Note**: Sender information is provided per-request via the API payload, not as Terraform variables.
