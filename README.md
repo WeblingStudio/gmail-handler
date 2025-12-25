@@ -10,6 +10,7 @@ This project allows a Service Account ("Robot") to impersonate a specific Google
 - **Domain-Wide Delegation**: Impersonates a Workspace user securely.
 - **Keyless Authentication**: Uses standard Google Cloud IAM permissions instead of downloaded keys.
 - **Safety Brakes**: Prevents infinite loops (sending to self) and limits attachment sizes.
+- **API Gateway**: Secure public entry point with API Key authentication.
 - **Infrastructure as Code**: Fully provisioned via Terraform.
 
 ## 📋 Prerequisites
@@ -36,6 +37,9 @@ region               = "my-gcp-region"
 # The Google Workspace user to impersonate (e.g., the actual mailbox owner)
 delegated_user_email = "notifications@example.com"
 
+# Region for API Gateway (must be a supported region like us-central1)
+gateway_region       = "us-central1"
+
 # The alias to appear in the "From" header (must be a valid alias for the user above)
 alias_email          = "no-reply@example.com"
 
@@ -48,6 +52,13 @@ invoker_members      = [
   "group:engineering-team@example.com"
 ]
 ```
+
+### 2. Alias Email
+If this is not configured, Google's anti-spoofing security will rewrite the "From" header to the authenticated user's primary email address, ignoring what your code sends.
+1. Log in to Gmail as the Delegated User.
+1. Go to Settings > Accounts > Send mail as.
+1. Add the alias_email address there.
+1. Crucial: Uncheck "Treat as an alias" if you want it to behave like a standalone sender, though usually, checking it is fine for this purpose.
 
 ## 📦 Deployment
 
@@ -72,19 +83,21 @@ invoker_members      = [
 1.  **Initialize Terraform**:
     ```bash
     cd infra
-    terraform init
+    terraform -chdir=infra init
+    terraform -chdir=infra plan
     ```
 
 1.  **Deploy**:
     ```bash
-    terraform apply
+    terraform -chdir=infra apply
     ```
+    *Note: The API Gateway Managed Service is enabled dynamically. It may take 1-2 minutes after deployment before the API Key is accepted.*
 
 1.  **Note the Outputs**:
     Upon success, Terraform will output values needed for the next step:
+    -   `gateway_url`: The secure HTTPS URL for the API Gateway.
+    -   `api_key_secret`: The API Key required for authentication (Hidden by default. Run `terraform -chdir=infra output -raw api_key_secret` to view).
     -   `service_account_client_id`: The Unique ID of the robot service account.
-    -   `service_account_email`: The email of the robot service account.
-    -   `function_uri`: The public URL of your deployed function.
 
 ## 🔐 Google Workspace Configuration (Critical)
 
@@ -105,7 +118,13 @@ After deployment, you must authorize the Service Account in the Google Workspace
 
 ## 📨 Usage
 
-You can invoke the function using `curl` or any HTTP client. The caller must have the `roles/run.invoker` permission (configured via `invoker_members` in Terraform).
+The service is exposed via Google API Gateway and secured with an API Key.
+
+### Client Configuration
+To integrate this service into external applications, configure the following environment variables using the Terraform outputs:
+
+*   `GMAIL_GATEWAY_URL`: `<your-gateway-url>/send` (HTTPS protocol is included in output)
+*   `GMAIL_API_KEY`: `<your-api-key>`
 
 ### Example Payload
 
@@ -120,14 +139,19 @@ You can invoke the function using `curl` or any HTTP client. The caller must hav
     "important": false
   }
 }
-{"recipient": "user@target.com","subject": "Hello from Cloud Functions","body_html": "<p>This is a test email.</p>","campaign_id": "welcome-series-001","options": {"starred": true,"important": false}}
 ```
 
 ### Example Request
 
 ```bash
-curl -X POST $(terraform output -raw function_uri) \
-  -H "Authorization: Bearer $(gcloud auth print-identity-token)" \
+# Project Root Directory
+# 1. Retrieve Config
+GATEWAY_URL=$(terraform -chdir=infra output -raw gateway_url)
+API_KEY=$(terraform -chdir=infra output -raw api_key_secret)
+
+# 2. Send Request
+curl -X POST "$GATEWAY_URL/send" \
+  -H "x-api-key: $API_KEY" \
   -H "Content-Type: application/json" \
   -d @payload.json
 ```
