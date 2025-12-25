@@ -173,9 +173,7 @@ resource "google_cloudfunctions2_function" "email_handler" {
     environment_variables = {
       LOG_LEVEL               = "INFO"
       DELEGATED_USER_EMAIL    = var.delegated_user_email
-      ALIAS_USER_EMAIL        = var.alias_email
       FUNCTION_IDENTITY_EMAIL = google_service_account.email_sender.email
-      SENDER_DISPLAY_NAME     = var.sender_display_name
     }
   }
 

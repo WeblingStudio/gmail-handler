@@ -1,14 +1,14 @@
+# The Google Cloud Project ID
 project_id           = "my-gcp-project-id"
+
+# The Google Cloud Region for deployment
 region               = "gcp-region"
+
+# The Google Cloud Region for the API Gateway (must support API Gateway service)
+gateway_region       = "gcp-region" # us-central1 by default
 
 # The Google Workspace user to impersonate (e.g., the actual mailbox owner)
 delegated_user_email = "notifications@example.com"
-
-# The alias to appear in the "From" header (must be a valid alias for the user above)
-alias_email          = "no-reply@example.com"
-
-# The name to display in the "From" header
-sender_display_name = "My Service Bot"
 
 # List of IAM members allowed to call this function via HTTP
 invoker_members      = [

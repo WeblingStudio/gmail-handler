@@ -17,13 +17,35 @@ securityDefinitions:
     in: "header"
 
 paths:
+  /health:
+    get:
+      summary: Health check endpoint
+      operationId: healthCheck
+      x-google-backend:
+        # Terraform will inject the Function URL here dynamically
+        address: ${function_url}
+        # The Gateway will generate an OIDC token for this identity
+        jwt_audience: ${function_url}
+        path_translation: APPEND_PATH_TO_ADDRESS
+      security:
+        - api_key_header: []
+      responses:
+        '200':
+          description: Service is healthy
+          schema:
+            type: object
+            properties:
+              status:
+                type: string
+              service:
+                type: string
   /send:
     post:
       summary: Send an email
       operationId: sendEmail
       x-google-backend:
         # Terraform will inject the Function URL here dynamically
-        address: ${function_url} 
+        address: ${function_url}
         # The Gateway will generate an OIDC token for this identity
         jwt_audience: ${function_url}
         path_translation: APPEND_PATH_TO_ADDRESS
