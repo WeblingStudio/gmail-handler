@@ -40,12 +40,6 @@ delegated_user_email = "notifications@example.com"
 # Region for API Gateway (must be a supported region like us-central1)
 gateway_region       = "us-central1"
 
-# The alias to appear in the "From" header (must be a valid alias for the user above)
-alias_email          = "no-reply@example.com"
-
-# The name to display in the "From" header
-sender_display_name = "My Service Bot"
-
 # List of IAM members allowed to call this function via HTTP
 invoker_members      = [
   "serviceAccount:my-invoker-sa@my-project.iam.gserviceaccount.com",
@@ -53,12 +47,27 @@ invoker_members      = [
 ]
 ```
 
-### 2. Alias Email
-If this is not configured, Google's anti-spoofing security will rewrite the "From" header to the authenticated user's primary email address, ignoring what your code sends.
-1. Log in to Gmail as the Delegated User.
-1. Go to Settings > Accounts > Send mail as.
-1. Add the alias_email address there.
-1. Crucial: Uncheck "Treat as an alias" if you want it to behave like a standalone sender, though usually, checking it is fine for this purpose.
+### 2. Gmail Sender Alias Configuration (CRITICAL)
+
+**IMPORTANT**: Sender addresses are provided per-request rather than configured at deployment time. You MUST configure ALL sender addresses you plan to use as Gmail aliases.
+
+#### Why This Matters
+Google's anti-spoofing security will REWRITE the "From" header to the authenticated user's primary email address if the sender address is not configured as a valid alias.
+
+#### Configuration Steps
+For EACH sender address you plan to use:
+
+1. Log in to Gmail as the Delegated User (`delegated_user_email`)
+2. Go to **Settings** → **Accounts** → **Send mail as**
+3. Click **Add another email address**
+4. Add the sender email address (e.g., `no-reply@example.com`, `support@example.com`)
+5. Follow Gmail's verification process
+6. **Tip**: You can check "Treat as an alias" for most use cases
+
+#### Request Validation
+- The `sender_address` field in your API request MUST match a configured alias
+- Gmail will silently rewrite the From header if not configured
+- No error will be returned, but recipients will see the wrong sender address
 
 ## 📦 Deployment
 
@@ -84,7 +93,6 @@ If this is not configured, Google's anti-spoofing security will rewrite the "Fro
     ```bash
     cd infra
     terraform -chdir=infra init
-    terraform -chdir=infra plan
     ```
 
 1.  **Deploy**:
@@ -130,7 +138,10 @@ To integrate this service into external applications, configure the following en
 
 ```json
 {
-  "recipient": "user@target.com",
+  "sender_address": "no-reply@example.com",
+  "sender_name": "My Service Bot",
+  "recipient_address": "user@target.com",
+  "recipient_name": "John Doe",
   "subject": "Hello from Cloud Functions",
   "body_html": "<p>This is a test email.</p>",
   "campaign_id": "welcome-series-001",
@@ -140,6 +151,17 @@ To integrate this service into external applications, configure the following en
   }
 }
 ```
+
+**Required Fields**:
+- `sender_address`: Must match a configured Gmail alias
+- `recipient_address`: Recipient email address
+- `subject`: Email subject line
+- `body_html`: HTML email body
+
+**Optional Fields**:
+- `sender_name`: Display name for sender
+- `recipient_name`: Display name for recipient
+- `campaign_id`, `cc`, `bcc`, `reply_to`, `custom_headers`, `attachments`, `options.*`
 
 ### Example Request
 
@@ -163,7 +185,6 @@ You can run the function locally using the Go Functions Framework.
 1.  **Set Environment Variables**:
     ```bash
     export DELEGATED_USER_EMAIL="notifications@example.com"
-    export ALIAS_USER_EMAIL="no-reply@example.com"
     export FUNCTION_IDENTITY_EMAIL="your-sa-email@..." # Required for local auth simulation
     ```
 
