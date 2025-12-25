@@ -81,40 +81,52 @@ External Client
   → API Gateway (x-api-key auth)
   → Cloud Function (OIDC auth from gateway)
   → HandleEmail handler
+  → Route: /health (returns status) OR /send (processes email)
   → Safety checks (loop prevention, size limits)
   → KeylessTokenSource.Token() (gets access token)
-  → Gmail API (sends email)
+  → Gmail API (sends email using client-provided sender_address)
   → Label modifications (starred, important, custom labels)
 ```
 
 ### Safety Mechanisms
 
 Located in `function.go:106-128`:
-- **Loop Prevention**: Blocks sending to `delegated_user_email` or `alias_email` to prevent infinite loops
+- **Loop Prevention**: Blocks sending to `delegated_user_email` to prevent infinite loops
 - **Attachment Size Limit**: 20MB total (with base64 encoding overhead buffer)
 - **HTML Sanitization**: All HTML content sanitized with bluemonday UGCPolicy
 
 ### Environment Variables
 
-Required at runtime (set by Terraform in Cloud Function):
+Required at runtime:
 - `DELEGATED_USER_EMAIL`: The Google Workspace user to impersonate (mailbox owner)
-- `ALIAS_USER_EMAIL`: The "From" address alias (must be configured in Gmail Settings → Send mail as)
 - `FUNCTION_IDENTITY_EMAIL`: The service account email (robot identity)
-- `SENDER_DISPLAY_NAME`: Display name in the "From" header
+
+Deprecated (v2.0+):
+- `ALIAS_USER_EMAIL`: Sender address now provided per-request
+- `SENDER_DISPLAY_NAME`: Sender name now provided per-request
 
 ### Important Implementation Details
 
 1. **Warm Starts**: The Gmail service client is cached in a global variable (`gmailService`) and reused across invocations for performance.
 
-2. **From Address Injection**: The handler forcibly overwrites `req.FromAddress` with `ALIAS_USER_EMAIL` at `function.go:140` to ensure consistent sender identity regardless of client input.
+2. **Client-Controlled Sender (v2.0+)**: The handler uses client-provided `req.SenderAddress` without modification. Clients must ensure the address is configured as a Gmail alias. Invalid aliases will be rewritten by Gmail's anti-spoofing.
 
-3. **Label Application**: Labels are applied post-send via `Messages.Modify` rather than during send. Failures are logged but don't fail the request since the primary email send succeeded.
+3. **Health Check Endpoint (v2.0+)**: `/health` endpoint provides lightweight status check without Gmail service initialization. Returns JSON: `{"status":"healthy","service":"gmail-handler"}`.
 
-4. **Terraform Source Packaging**: The function source is zipped from the parent directory with exclusions for `infra/`, `.git/`, and `cmd/` directories. The zip hash is used in the GCS object name to trigger redeployment on code changes.
+4. **Label Application**: Labels are applied post-send via `Messages.Modify` rather than during send. Failures are logged but don't fail the request since the primary email send succeeded.
 
-5. **API Gateway Authentication**: Uses a two-layer approach:
+5. **Terraform Source Packaging**: The function source is zipped from the parent directory with exclusions for `infra/`, `.git/`, and `cmd/` directories. The zip hash is used in the GCS object name to trigger redeployment on code changes.
+
+6. **API Gateway Authentication**: Uses a two-layer approach:
    - External clients authenticate with API Key (x-api-key header)
    - Gateway authenticates to Cloud Function with OIDC token (generated via gateway service account)
+
+7. **Adding New Endpoints**: When adding new routes to `function.go`, you MUST also update the API Gateway OpenAPI specification:
+   - Edit `infra/api_config.yaml` to add the new path definition
+   - Include the `x-google-backend` configuration pointing to `${function_url}`
+   - Add `security: - api_key_header: []` to require API key authentication
+   - Deploy with `terraform -chdir=infra apply` to update the gateway
+   - Example: The `/health` endpoint required adding a GET path definition to the OpenAPI spec
 
 ### Module Structure
 
@@ -124,9 +136,14 @@ pkg/
 ├── constants/    - Shared constants for headers, auth, MIME types
 └── email/        - MIME message construction and sanitization
 
-cmd/main.go       - Local development entry point (Functions Framework)
-function.go       - Cloud Function HTTP handler
-infra/            - Terraform configuration for GCP resources
+cmd/main.go            - Local development entry point (Functions Framework)
+function.go            - Cloud Function HTTP handler
+infra/
+├── main.tf            - Terraform resources (Function, Gateway, IAM)
+├── api_config.yaml    - OpenAPI spec for API Gateway (defines endpoints)
+├── variables.tf       - Input variables
+├── outputs.tf         - Output values
+└── terraform.tfvars   - Terraform variables (.gitignored)
 ```
 
 ### Deployment Prerequisites
