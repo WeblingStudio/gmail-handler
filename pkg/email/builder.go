@@ -17,12 +17,13 @@ type Request struct {
 	CampaignID string `json:"campaign_id"`
 
 	// Identity & Recipients
-	SenderName  string   `json:"sender_name,omitempty"`
-	Recipient   string   `json:"recipient"`
-	CC          []string `json:"cc,omitempty"`
-	BCC         []string `json:"bcc,omitempty"`
-	ReplyTo     string   `json:"reply_to,omitempty"`
-	FromAddress string   `json:"from_address,omitempty"` // INJECTION FIELD
+	SenderName       string   `json:"sender_name,omitempty"`
+	SenderAddress    string   `json:"sender_address"`
+	RecipientName    string   `json:"recipient_name,omitempty"`
+	RecipientAddress string   `json:"recipient_address"`
+	CC               []string `json:"cc,omitempty"`
+	BCC              []string `json:"bcc,omitempty"`
+	ReplyTo          string   `json:"reply_to,omitempty"`
 
 	// Content
 	Subject  string `json:"subject"`
@@ -75,13 +76,19 @@ func BuildMime(req Request) ([]byte, error) {
 	}
 
 	// From Header
-	fromHeader := fmt.Sprintf("%s: %s\r\n", constants.HeaderFrom, req.FromAddress)
+	fromHeader := fmt.Sprintf("%s: %s\r\n", constants.HeaderFrom, req.SenderAddress)
 	if req.SenderName != "" {
-		fromHeader = fmt.Sprintf("%s: \"%s\" <%s>\r\n", constants.HeaderFrom, req.SenderName, req.FromAddress)
+		fromHeader = fmt.Sprintf("%s: \"%s\" <%s>\r\n", constants.HeaderFrom, req.SenderName, req.SenderAddress)
 	}
 
 	headers := fromHeader
-	headers += formatAddr(constants.HeaderTo, req.Recipient)
+
+	// To Header - support optional display name
+	toHeader := req.RecipientAddress
+	if req.RecipientName != "" {
+		toHeader = fmt.Sprintf("\"%s\" <%s>", req.RecipientName, req.RecipientAddress)
+	}
+	headers += formatAddr(constants.HeaderTo, toHeader)
 
 	if len(req.CC) > 0 {
 		headers += formatAddr(constants.HeaderCC, strings.Join(req.CC, ", "))

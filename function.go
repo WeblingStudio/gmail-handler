@@ -24,9 +24,7 @@ import (
 // Environment Variable Keys
 const (
 	EnvDelegatedUser = "DELEGATED_USER_EMAIL"    // e.g. admin@ or notifications@
-	EnvAliasEmail    = "ALIAS_USER_EMAIL"        // e.g. notifications@
 	EnvFunctionSA    = "FUNCTION_IDENTITY_EMAIL" // The Cloud Function's Service Account
-	EnvSenderName    = "SENDER_DISPLAY_NAME"     // Optional: "My Service Name"
 
 	// Safety Limits
 	MaxTotalSizeMB = 20
@@ -83,17 +81,20 @@ func HandleEmail(w http.ResponseWriter, r *http.Request) {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
 	// --- 0. Routing / Path Validation ---
-	// Future-proofing: Ensure we only process requests meant for the send endpoint.
+	if r.URL.Path == "/health" {
+		w.Header().Set(constants.HTTPContentType, constants.HTTPAppJSON)
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, `{"status":"healthy","service":"gmail-handler"}`)
+		return
+	}
+
 	if r.URL.Path != "/send" && r.URL.Path != "/" {
 		http.NotFound(w, r)
 		return
 	}
 
 	// --- 1. Load Config & Validate ---
-	// We read the Alias Email here to inject it into the request
-	aliasEmail := os.Getenv(EnvAliasEmail)
 	delegatedUser := os.Getenv(EnvDelegatedUser)
-	senderName := os.Getenv(EnvSenderName)
 
 	// --- 2. Parse Payload ---
 	var req email.Request
@@ -105,13 +106,13 @@ func HandleEmail(w http.ResponseWriter, r *http.Request) {
 
 	// --- 3. SAFETY BRAKES ---
 
-	// A. Loop Protection: Prevent sending TO the Admin or the Alias
-	if req.Recipient == delegatedUser || req.Recipient == aliasEmail {
-		logger.Warn("safety brake: blocked attempt to send to self",
-			"recipient", req.Recipient,
+	// A. Loop Protection: Prevent sending TO the delegated user account
+	if req.RecipientAddress == delegatedUser {
+		logger.Warn("safety brake: blocked attempt to send to delegated user",
+			"recipient_address", req.RecipientAddress,
 			"delegated_user", delegatedUser,
 		)
-		http.Error(w, "Safety Block: Cannot send to self", http.StatusBadRequest)
+		http.Error(w, "Safety Block: Cannot send to delegated user account", http.StatusBadRequest)
 		return
 	}
 
@@ -135,14 +136,12 @@ func HandleEmail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// --- 5. Construct MIME Message ---
-
-	// INJECTION: Force the builder to use our configured Alias
-	req.FromAddress = aliasEmail
-	if senderName != "" {
-		req.SenderName = senderName
-	}
-
-	logger.Info("preparing email", "from_address", req.FromAddress, "recipient", req.Recipient)
+	logger.Info("preparing email",
+		"sender_address", req.SenderAddress,
+		"sender_name", req.SenderName,
+		"recipient_address", req.RecipientAddress,
+		"recipient_name", req.RecipientName,
+	)
 
 	rawMime, err := email.BuildMime(req)
 	if err != nil {
@@ -158,7 +157,7 @@ func HandleEmail(w http.ResponseWriter, r *http.Request) {
 
 	sentMsg, err := gmailService.Users.Messages.Send("me", msg).Do()
 	if err != nil {
-		logger.Error("upstream send failed", "recipient", req.Recipient, "error", err)
+		logger.Error("upstream send failed", "recipient_address", req.RecipientAddress, "error", err)
 		http.Error(w, fmt.Sprintf("Upstream API Error: %v", err), http.StatusBadGateway)
 		return
 	}
@@ -188,8 +187,8 @@ func HandleEmail(w http.ResponseWriter, r *http.Request) {
 	// --- 8. Success Log ---
 	logger.Info("email sent successfully",
 		"id", sentMsg.Id,
-		"recipient", req.Recipient,
-		"sent_as", aliasEmail,
+		"recipient_address", req.RecipientAddress,
+		"sender_address", req.SenderAddress,
 		"campaign", req.CampaignID,
 	)
 
