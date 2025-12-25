@@ -3,6 +3,7 @@ module github.com/vinm0/gmail-handler
 go 1.25
 
 require (
+	github.com/joho/godotenv v1.5.1
 	github.com/microcosm-cc/bluemonday v1.0.27
 	golang.org/x/oauth2 v0.34.0
 )
