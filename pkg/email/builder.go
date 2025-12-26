@@ -3,6 +3,7 @@ package email
 import (
 	"bytes"
 	"fmt"
+	"html"
 	"mime/multipart"
 	"net/textproto"
 	"strings"
@@ -58,10 +59,26 @@ func SecurityPolicy(campaignID string) *bluemonday.Policy {
 	return bluemonday.UGCPolicy()
 }
 
+// SanitizeHTML decodes HTML entities first (to handle pre-encoded input),
+// then applies bluemonday sanitization. This prevents double-encoding issues
+// when clients send content with entities like &apos;, &quot;, etc.
+func SanitizeHTML(rawHTML string, campaignID string) string {
+	// 1. Fix common encoding corruptions (e.g., &№x2F; -> &#x2F;)
+	// This handles cases where # is corrupted to № (Numero sign) due to encoding issues
+	cleaned := strings.ReplaceAll(rawHTML, "&№x", "&#x")
+	cleaned = strings.ReplaceAll(cleaned, "&№", "&#")
+
+	// 2. Decode any existing HTML entities (&apos; -> ', &#x27; -> ', etc.)
+	decoded := html.UnescapeString(cleaned)
+
+	// 3. Apply our security policy (which will re-encode as needed)
+	policy := SecurityPolicy(campaignID)
+	return policy.Sanitize(decoded)
+}
+
 func BuildMime(req Request) ([]byte, error) {
-	// 1. Sanitize Body
-	policy := SecurityPolicy(req.CampaignID)
-	safeBody := policy.Sanitize(req.BodyHTML)
+	// 1. Sanitize Body (decode entities first, then sanitize)
+	safeBody := SanitizeHTML(req.BodyHTML, req.CampaignID)
 
 	// 2. Setup Buffer
 	var b bytes.Buffer
